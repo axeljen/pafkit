@@ -41,6 +41,14 @@ def parse_region(region_str):
         raise ValueError(f"Invalid region format: {region_str}")
     return (chrom, start, end)
 
+def parse_fai_to_regions(fai_file):
+    with open(fai_file, 'r') as f:
+        regions = []
+        for line in f:
+            parts = line.strip().split('\t')
+            regions.append((parts[0], None, None))
+    return regions
+
 # get arguments
 args = parse_args()
 input_paf = args.input
@@ -65,11 +73,14 @@ reference=args.reference
 if reference_region:
     reference_regions.append(parse_region(reference_region))
 if reference_regions_file:
-    with open(reference_regions_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                reference_regions.append(parse_region(line))
+    if reference_regions_file.endswith('.fai'):
+        reference_regions = parse_fai_to_regions(reference_regions_file)
+    else:
+        with open(reference_regions_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    reference_regions.append(parse_region(line))
                 
 # read paf file and filter alignments
 paf = pafparser.read_paf(input_paf, target_genome=reference, query_genome=query)
