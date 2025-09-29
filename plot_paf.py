@@ -117,7 +117,7 @@ skip_reorientation = args.skip_reorientation
 refgenome_label = args.refgenome_label
 querygenome_label = args.querygenome_label
 
-if chromlabs == None:
+if chromlabs == 'none':
     label_refchroms = False
     label_querychroms = False
 elif chromlabs == 'both':

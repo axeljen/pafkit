@@ -33,4 +33,12 @@ class Genome():
         for sequence, length in self.sequences.items():
             maxpos = self.cumulative_startpos[sequence] + length if self.cumulative_startpos[sequence] + length > maxpos else maxpos
         return maxpos
+    def sort_sequences(self, sequence_order):
+        # sequence_order is a list of sequence names in the desired order
+        sorted_sequences = {}
+        for seq in sequence_order:
+            if seq in self.sequences:
+                sorted_sequences[seq] = self.sequences[seq]
+        self.sequences = sorted_sequences
+
         

@@ -11,6 +11,7 @@ class PAF():
         self.target_genome = None
         self.query_genome = None
         self.sorted = None
+        self.header = None
     def __repr__(self):
         # print the first 10 alignments
         string_repr = "Paf with {} alignments.\nTotal alignment length: {}.".format(len(self.alignments), self.aln_length())
@@ -23,12 +24,16 @@ class PAF():
         if len(self.alignments) > 0 and not overwrite:
             raise ValueError("Alignments already present. Set overwrite=True to overwrite.")
         self.alignments = []
+        header = ""
         # if we're reading from standard input
         if hasattr(paf_file, 'read'):
             f = paf_file
         else:
             f = open(paf_file)
         for line in f.readlines():
+            if line.startswith("@"):
+                header += line
+                continue
             alignment = Alignment()
             alignment.parse_paf_alignment(line)
             self.alignments.append(alignment)
@@ -155,6 +160,17 @@ class PAF():
                 aln.flip_query_alignment()
             flipped_alignments.append(aln)
         self.alignments = flipped_alignments
+    def get_median_target_position(self, query_chrom):
+        target_positions = []
+        target_lengths = []
+        for aln in self.fetch_query(query_chrom):
+            target_positions.append((aln.target_sequence_start + self.target_genome.cumulative_startpos[aln.target_sequence]))
+            target_lengths.append(aln.aln_length_target)
+        if not target_positions:
+            # return infinity if no positions found
+            return float('inf')
+        median_pos = weighted_median(target_positions, target_lengths)
+        return median_pos
     def get_min_target_position(self, query_chrom):
         previous_position = 0
         previous_sequence = None
@@ -261,18 +277,25 @@ class PAF():
                         if aln.query_sequence == query_sequence and aln.query_start <= query_sequence_end and aln.query_end >= query_sequence_start:
                             overlapping_alignments.append(aln)
         return overlapping_alignments
-    def get_median_target_position(self, query_sequence):
-        target_positions = []
-        for aln in self.alignments:
-            if aln.query_sequence == query_sequence:
-                try:
-                    target_positions.append(aln.target_sequence_start + self.target_genome.cumulative_startpos[aln.target_sequence])
-                except KeyError:
-                    print("No cumulative start position found for sequence {}.".format(aln.target_sequence))
-        if not target_positions:
-            print("No target positions found for query sequence {}.".format(query_sequence))
-            return None
-        return np.median(target_positions)
+    def sort_query_chroms(self, by = 'median_target'):
+        if by != 'median_target':
+            raise ValueError("Only 'median_target' sorting is implemented.")
+        if not self.query_genome:
+            raise ValueError("Query genome must be provided to sort query chromosomes.")
+        if not self.target_genome:
+            raise ValueError("Target genome must be provided to sort query chromosomes.")
+        # get median target positions of all query sequences
+        query_positions = []
+        for sequence in self.query_genome.sequences:
+            median_start = self.get_median_target_position(sequence)
+            if median_start is not None:
+                query_positions.append({'sequence': sequence, 'median_start': median_start})
+        # sort on median target position
+        query_positions = sorted(query_positions, key=lambda x: x['median_start'])
+        # get the new order of query sequences
+        new_order = [q['sequence'] for q in query_positions]
+        # sort the query genome sequences
+        self.query_genome.sort_sequences(new_order)
     def add_cumulative_query_start(self, sequence_gap=0):
         # sort on target
         self.sort_on_target()
@@ -284,6 +307,8 @@ class PAF():
             median_start = self.get_median_target_position(sequence)
             if median_start is not None:
                 query_positions.append({'sequence': sequence, 'median_start': median_start})
+            else:
+                query_positions.append({'sequence': sequence, 'median_start': float('inf')})
         # sort on median start position
         query_positions = sorted(query_positions, key=lambda x: x['median_start'])
         # add cumulative query start positions
@@ -291,6 +316,7 @@ class PAF():
         for q in query_positions:
             self.query_genome.cumulative_startpos[q['sequence']] = cumulative_pos
             cumulative_pos += self.query_genome.sequences[q['sequence']] + sequence_gap
+            # print("Cumulative start position of query sequence {}: {}".format(q['sequence'], self.query_genome.cumulative_startpos[q['sequence']]))
     def syntenymap(self, sequence_gap=0):
         """ 
             Simplistic way of preparing a syntenymap for plotting.
@@ -326,3 +352,18 @@ def read_paf(paf_file, target_genome = None, query_genome = None):
     else:
         paf.parse_paf(paf_file, target_genome=target_genome, query_genome=query_genome)
     return paf
+
+
+def weighted_median(positions, weights):
+    """Compute weighted median of positions with given weights (alignment lengths)."""
+    # Sort by position
+    idx = np.argsort(positions)
+    positions = np.array(positions)[idx]
+    weights = np.array(weights)[idx]
+
+    # Cumulative sum of weights
+    cumulative = np.cumsum(weights)
+    cutoff = cumulative[-1] / 2.0
+
+    # Find the first position where cumulative weight exceeds half total
+    return positions[np.searchsorted(cumulative, cutoff)]
