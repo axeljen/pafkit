@@ -82,15 +82,16 @@ class Alignment():
         merged_aln.query_sequence_length = self.query_sequence_length
         merged_aln.query_sequence_start = min(self.query_sequence_start, aln2.query_sequence_start)
         merged_aln.query_sequence_end = max(self.query_sequence_end, aln2.query_sequence_end)
-        merged_aln.query_aln_length = merged_aln.query_sequence_end - merged_aln.query_sequence_start
+        merged_aln.aln_length_query = merged_aln.query_sequence_end - merged_aln.query_sequence_start
         merged_aln.target_sequence = self.target_sequence
         merged_aln.target_sequence_length = self.target_sequence_length
         merged_aln.target_sequence_start = min(self.target_sequence_start, aln2.target_sequence_start)
         merged_aln.target_sequence_end = max(self.target_sequence_end, aln2.target_sequence_end)
-        merged_aln.target_aln_length = merged_aln.target_sequence_end - merged_aln.target_sequence_start
+        merged_aln.aln_length_target = merged_aln.target_sequence_end - merged_aln.target_sequence_start
         merged_aln.aln_base_matches = self.aln_base_matches + aln2.aln_base_matches
         merged_aln.aln_base_total = self.aln_base_total + aln2.aln_base_total
         merged_aln.aln_mapping_quality = (self.aln_mapping_quality + aln2.aln_mapping_quality) / 2
+        merged_aln.target_sequence_strand = self.target_sequence_strand
         return merged_aln
     def flip_query_alignment(self):
         self.query_sequence_start, self.query_sequence_end = self.query_sequence_length - self.query_sequence_end, self.query_sequence_length - self.query_sequence_start
