@@ -1,3 +1,4 @@
+import re
 # class for storing alignments (as represented within a paf file)
 
 # some terminology: 
@@ -119,7 +120,7 @@ class Alignment():
         ref_pos = self.target_sequence_start
         # store query position as relative to allow for strand correction ater
         query_pos = 0
-        for n, op in re.findall(r'(\d+)([MIDNSHPX=])', self.aln_samfields['cg']):
+        for n, op in re.findall(r'(\d+)([MIDNSHPX=])', self.aln_samfields['cg'][1]):
             n = int(n)
             if op in cigarops:
                 query_consumes, target_consumes = cigarops[op]

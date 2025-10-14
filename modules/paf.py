@@ -2,6 +2,7 @@
 from .genome import Genome
 from .aln import Alignment
 import sys
+import re
 import numpy as np
 import warnings
 
@@ -47,7 +48,7 @@ class PAF():
             self.query_genome.parse_genome(query_genome)
         else:
             warnings.warn("No query genome index file provided, some functions require this to work.")
-    def filter_alignments(self, minlen=10000, minmapq=40, minpid=0.9, only_ref_chroms=False, only_query_chroms=False, min_target_sequence_length=0, min_query_sequence_length=0,aligned_fraction=None):
+    def filter_alignments(self, minlen=0, minmapq=0, minpid=0, only_ref_chroms=False, only_query_chroms=False, min_target_sequence_length=0, min_query_sequence_length=0,aligned_fraction=None):
         """
         Filter out alignments based on minimum length, minimum mapping quality, and minimum percent identity.
         Additionally, we can remove alignments to sequences not present in the target/query genome index files, such that one can choose to, e.g., 
@@ -200,17 +201,44 @@ class PAF():
     def aln_length(self):
         return sum([a.aln_length_target for a in self.alignments])
     def get_query_position_from_target(self, target_chrom, target_pos):
-        """ Very (too) simplistic liftover from target to query. This one should be updated. """
-        for aln in self.alignments:
-            if aln.target_sequence == target_chrom and aln.target_start <= target_pos <= aln.target_end:
-                # check how far from the start of the alignment our target position is
-                relative_pos = (target_pos - aln.target_start) / aln.target_aln_length
-                # calculate the query position
-                if aln.target_sequence_strand == "+":
-                    return (aln.query_sequence, round(aln.query_start + relative_pos * aln.aln_length_query, 0))
+        """ Function to get the query position corresponding to a target position based on the alignments. """
+        # if the target position is outside the range of the target chromosome, raise an error
+        if not self.target_genome:
+            raise ValueError("Target genome must be provided to get query position from target position.")
+        if target_chrom not in self.target_genome.sequences:
+            raise ValueError("Target chromosome {} not found in target genome.".format(target_chrom))
+        if target_pos < 0 or target_pos > self.target_genome.sequences[target_chrom]:
+            raise ValueError("Target position {} is outside the range of target chromosome {} (length {}).".format(target_pos, target_chrom, self.target_genome.sequences[target_chrom]))
+        # make sure that alignments are sorted by target
+        self.sort_on_target(suppress_warnings=False)
+        # get all the alignments for the target chromosome
+        alignments = self.fetch(target_sequence=target_chrom)
+        last_pos = 0
+        for aln in alignments:
+            if aln.target_sequence_end < target_pos:
+                last_pos = aln.target_sequence_end
+                # if the alignment ends before the target position, just update last_pos and continue
+                continue
+            else:
+                # otherwise check if the target position is within the alignment
+                if aln.target_sequence_start <= target_pos <= aln.target_sequence_end:
+                    liftover_seq = aln.query_sequence
+                    # get the position using the cigar string
+                    liftover_pos = aln.refpos2querypos(target_pos)
+                    break
+                # if not, we return the interval between the last position and the start of this alignment
                 else:
-                    return (aln.query_sequence, round(aln.query_end - relative_pos * aln.aln_length_query, 0))
-        return None
+                    liftover_seq = aln.query_sequence
+                    liftover_pos = (last_pos, aln.target_sequence_start)
+                    break
+        # if liftover pos is of length 1, make a tuple with identical start and end
+        if isinstance(liftover_pos, int):
+            return (liftover_seq, liftover_pos, liftover_pos)
+        elif isinstance(liftover_pos, tuple) and len(liftover_pos) == 2:
+            return (liftover_seq, liftover_pos[0], liftover_pos[1])
+        else:
+            # if this for some reason fails, return None
+            return None
     # def switch_strand_sign(self,chrom):
     #     for aln in self.alignments:
     #         if aln.query_sequence == chrom:
@@ -342,7 +370,6 @@ class PAF():
             f.write(aln.to_paf() + "\n")
         if close_file:
             f.close()
-        
     
 # read/write functions
 def read_paf(paf_file, target_genome = None, query_genome = None):
