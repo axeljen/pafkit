@@ -20,7 +20,7 @@ python3 plot_paf.py -i input.paf -r reference_genome_file.txt -q query_genome_fi
 
 def synteny_plot(paf, output_file, ref_color="lightgray", query_color="lightgray", aln_color="orange", aln_color_inverted="red",
                  ref_color_alpha=1.0, query_color_alpha=1.0, aln_color_alpha=0.4, aln_color_inverted_alpha=0.4, ref_labels=True, query_labels=True,
-                 refgenome_label=None, querygenome_label=None):
+                 refgenome_label=None, querygenome_label=None, reference_segments=None, query_segments=None):
     """ plot synteny as a ribbon plot using matplotlib """
     # set up figure
     fig, ax = plt.subplots(figsize=(10, 6), dpi = 300)
@@ -72,7 +72,22 @@ def synteny_plot(paf, output_file, ref_color="lightgray", query_color="lightgray
             poly = Polygon([[x1, y1], [x2, y1], [x4, y2], [x3, y2]],
                            closed=True, facecolor=aln_color_inverted, alpha=aln_color_inverted_alpha, edgecolor=None)
             #draw_sigmoid_ribbon(ax, x1, x2, y1, x3, x4, y2, color=aln_color_inverted, alpha=aln_color_inverted_alpha)
-        ax.add_patch(poly)    
+        ax.add_patch(poly)
+    # if there are segments to highlight, add these on top of the respective chromosomes
+    if reference_segments and len(reference_segments) > 0:
+        for seg in reference_segments:
+            if seg['sequence'] in paf.target_genome.sequences:
+                start = paf.target_genome.cumulative_startpos[seg['sequence']] + seg['start']
+                length = seg['end'] - seg['start']
+                rect = Rectangle((start, y_ref), length, rect_height, facecolor="black", edgecolor="k")
+                ax.add_patch(rect)
+    if query_segments and len(query_segments) > 0:
+        for seg in query_segments:
+            if seg['sequence'] in paf.query_genome.sequences:
+                start = paf.query_genome.cumulative_startpos[seg['sequence']] + seg['start']
+                length = seg['end'] - seg['start']
+                rect = Rectangle((start, y_query), length, rect_height, facecolor="black", edgecolor="k")
+                ax.add_patch(rect)
     # clean up
     ax.axis("off")
     plt.savefig(output_file, bbox_inches='tight', dpi=300)

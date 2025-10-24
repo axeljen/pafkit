@@ -1,81 +1,153 @@
-import modules.paf as pafparser
+import sys
 
-class HomologyBlocks:
-    def __init__(self, paf):
-        self.block_1 = [paf.alignments[0]]
-        self.block_2 = []
-        self.blocks = []
-    def is_consecutive(self, aln, block):
-        if len(block) == 0:
-            return False
-        last_aln = block[-1]
-        if aln.is_consecutive(last_aln):
-            return True
-        return False
-    def block_length(self, block):
-        length = 0
-        for aln in block:
-            length += aln.aln_length_target
-        return length
-    def add_block(self, block, max_gap=10000):
-        # check that only one ref and query sequence is present in the block
-        ref_seqs = set()
-        query_seqs = set()
-        for aln in block:
-            ref_seqs.add(aln.target_sequence)
-            query_seqs.add(aln.query_sequence)
-        if len(ref_seqs) > 1 or len(query_seqs) > 1:
-            raise ValueError("Block contains multiple reference or query sequences")
-        # if length is too short, do not add the block
-        if self.block_length(block) < max_gap:
-            return
-        refchrom = list(ref_seqs)[0]
-        querychrom = list(query_seqs)[0]
-        block_start_ref = min([aln.target_sequence_start for aln in block])
-        block_end_ref = max([aln.target_sequence_end for aln in block])
-        block_start_query = min([aln.query_sequence_start for aln in block])
-        block_end_query = max([aln.query_sequence_end for aln in block])
-        block_length_ref = block_end_ref - block_start_ref
-        block_length_query = block_end_query - block_start_query
-        self.blocks.append({
-            "refchrom": refchrom,
-            "querychrom": querychrom,
-            "block_start_ref": block_start_ref,
-            "block_end_ref": block_end_ref,
-            "block_length_ref": block_length_ref,
-            "block_start_query": block_start_query,
-            "block_end_query": block_end_query,
-            "block_length_query": block_length_query,
+# sort alignments into blocks consisting of things thar are on the same chromosomes
+def identify_blocks(paf, min_length=1000000):
+    blocks = []
+    current_block = [paf.alignments[0]]
+    for aln in paf.alignments[1:]:
+        if aln.target_sequence == current_block[-1].target_sequence and aln.query_sequence == current_block[-1].query_sequence:
+            # append if both target and query sequences are the same
+            current_block.append(aln)
+        else:
+            # otherwise, start a new block
+            blocks.append(current_block)
+            current_block = [aln]
+    # append the last block
+    blocks.append(current_block)
+    # clean them up a bit
+    cleaned_blocks = []
+    for block in blocks:
+        min_target = min([aln.target_sequence_start for aln in block])
+        max_target = max([aln.target_sequence_end for aln in block])
+        min_query = min([aln.query_sequence_start for aln in block])
+        max_query = max([aln.query_sequence_end for aln in block])
+        length_target = max_target - min_target
+        length_query = max_query - min_query
+        target_sequence = block[0].target_sequence
+        query_sequence = block[0].query_sequence
+        # if strand is negative, swap start and end coordinates of query
+        if block[0].target_sequence_strand == '-':
+            min_query, max_query = paf.query_genome.sequences[query_sequence] - max_query, paf.query_genome.sequences[query_sequence] - min_query
+        cleaned_blocks.append({
+            "target_sequence": target_sequence,
+            "query_sequence": query_sequence,
+            "min_target": min_target,
+            "max_target": max_target,
+            "length_target": length_target,
+            "min_query": min_query,
+            "max_query": max_query,
+            "length_query": length_query,
             "num_alignments": len(block)
         })
-    def check_blocks(self, min_block_length=100000):
-        len_block_2 = self.block_length(self.block_2)
-        if len_block_2 > min_block_length:
-            self.add_block(self.block_1, min_block_length)
-            self.block_1 = self.block_2
-            self.block_2 = []
+    # remove blocks that are too short
+    cleaned_blocks = [block for block in cleaned_blocks if block["length_target"] >= min_length and block["length_query"] >= min_length]
+    print("Identified {} blocks after filtering for minimum length of {}".format(len(cleaned_blocks), min_length))
+    print(cleaned_blocks)
+    return cleaned_blocks
 
+def call_fissions(blocks):
+    # sort blocks by target sequence and start position
+    blocks = sorted(blocks, key=lambda x: (x["target_sequence"], x["min_target"]))
+    fissions = []
+    last_block = blocks[0]
+    for block in blocks[1:]:
+        if block["target_sequence"] == last_block["target_sequence"]:
+            # same target sequence, check if query sequence is different and non-overlapping
+            if block["query_sequence"] != last_block["query_sequence"]:
+                fissions.append({
+                    "event": "fission",
+                    "target_sequence_1": block["target_sequence"],
+                    "target_min_1": last_block["max_target"],
+                    "target_max_1": block["min_target"],
+                    "query_sequence_1": last_block["query_sequence"],
+                    "query_min_1": last_block["min_query"],
+                    "query_max_1": last_block["max_query"],
+                    "query_sequence_2": block["query_sequence"],
+                    "query_min_2": block["min_query"],
+                    "query_max_2": block["max_query"],
+                    "target_sequence_2": "NA",
+                    "target_min_2": "NA",
+                    "target_max_2": "NA"
+                })
+                last_block = block
+            else:
+                # update last block if overlapping or same query
+                if block["max_query"] > last_block["max_query"]:
+                    last_block = block
+        else:
+            # different target sequence, reset
+            last_block = block
+    return fissions
+                
 
-def identify_homology_blocks(paf, min_block_length=100000):
-    homology_blocks = HomologyBlocks(paf)
-    for aln in paf.alignments[1:]:
-        # case 1: consecutive to block_1 → extend it
-        if homology_blocks.is_consecutive(aln, homology_blocks.block_1):
-            homology_blocks.block_1.append(aln)
-            continue
-        # case 2: consecutive to block_2 → extend it, *then* check if long enough to promote
-        if len(homology_blocks.block_2) > 0 and homology_blocks.is_consecutive(aln, homology_blocks.block_2):
-            homology_blocks.block_2.append(aln)
-            # check after appending
-            homology_blocks.check_blocks(min_block_length)
-            continue
-        # case 3: not consecutive to either block
-        # first check if block_2 is long enough to replace block_1
-        homology_blocks.check_blocks(min_block_length)
-        # start a new block_2 with the new alignment
-        homology_blocks.block_2 = [aln]
-    # finalize at end
-    homology_blocks.add_block(homology_blocks.block_1, min_block_length)
-    homology_blocks.add_block(homology_blocks.block_2, min_block_length)
+def call_fusions(blocks):
+    # Fusions are called in the same way, only query sorted instead and query sequences checked for being the same
+    blocks = sorted(blocks, key=lambda x: (x["query_sequence"], x["min_query"]))
+    fusions = []
+    last_block = blocks[0]
+    for block in blocks[1:]:
+        if block["query_sequence"] == last_block["query_sequence"]:
+            # same query sequence, check if target sequence is different and non-overlapping
+            if block["target_sequence"] != last_block["target_sequence"]:
+                fusions.append({
+                    "event": "fusion",
+                    "target_sequence_1": last_block["target_sequence"],
+                    "target_min_1": last_block["min_target"],
+                    "target_max_1": last_block["max_target"],
+                    "query_sequence_1": block["query_sequence"],
+                    "query_min_1": last_block["max_query"],
+                    "query_max_1": block["min_query"],
+                    "target_sequence_2": block["target_sequence"],
+                    "target_min_2": block["min_target"],
+                    "target_max_2": block["max_target"],
+                    "query_sequence_2": "NA",
+                    "query_min_2": "NA",
+                    "query_max_2": "NA"
+                })
+                last_block = block
+            else:
+                # update last block if overlapping or same target
+                if block["max_target"] > last_block["max_target"]:
+                    last_block = block
+        else:
+            # different query sequence, reset
+            last_block = block
+    return fusions
 
-    return homology_blocks.blocks
+def write_events(outfile, events):
+    headers = ['event', 'target_sequence_1', 'target_min_1', 'target_max_1', 'query_sequence_1', 'query_min_1', 'query_max_1', 'target_sequence_2', 'target_min_2', 'target_max_2', 'query_sequence_2', 'query_min_2', 'query_max_2']
+    if outfile == sys.stdout:
+        f = sys.stdout
+    else:
+        f = open(outfile, 'w')
+    f.write("\t".join(headers) + "\n")
+    for event in events:
+        if event['event'] == 'fission':
+            f.write("{event}\t{target_sequence}\t{target_min}\t{target_max}\t{query_sequence_1}\t{query_start_1}\t{query_end_1}\tNA\tNA\tNA\t{query_sequence_2}\t{query_start_2}\t{query_end_2}\n".format(
+                event='fission',
+                target_sequence=event['target_sequence_1'],
+                target_min=event['target_min_1'],
+                target_max=event['target_max_1'],
+                query_sequence_1=event['query_sequence_1'],
+                query_start_1=event['query_min_1'],
+                query_end_1=event['query_max_1'],
+                query_sequence_2=event['query_sequence_2'],
+                query_start_2=event['query_min_2'],
+                query_end_2=event['query_max_2']
+            ))
+        elif event['event'] == 'fusion':
+            f.write("{event}\t{target_sequence_1}\t{target_start_1}\t{target_end_1}\t{query_sequence}\t{query_min}\t{query_max}\t{target_sequence_2}\t{target_start_2}\t{target_end_2}\tNA\tNA\tNA\n".format(
+                event='fusion',
+                target_sequence_1=event['target_sequence_1'],
+                target_start_1=event['target_min_1'],
+                target_end_1=event['target_max_1'],
+                query_sequence=event['query_sequence_1'],
+                query_min=event['query_min_1'],
+                query_max=event['query_max_1'],
+                target_sequence_2=event['target_sequence_2'],
+                target_start_2=event['target_min_2'],
+                target_end_2=event['target_max_2']
+            ))
+    if f is not sys.stdout:
+        f.close()
+

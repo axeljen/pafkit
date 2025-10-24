@@ -93,6 +93,12 @@ class Alignment():
         merged_aln.aln_base_total = self.aln_base_total + aln2.aln_base_total
         merged_aln.aln_mapping_quality = (self.aln_mapping_quality + aln2.aln_mapping_quality) / 2
         merged_aln.target_sequence_strand = self.target_sequence_strand
+        if self.target_sequence_strand == "-":
+            # swap target start and end if on minus strand
+            start = merged_aln.target_sequence_end
+            end = merged_aln.target_sequence_start
+            merged_aln.target_sequence_start = end
+            merged_aln.target_sequence_end = start
         return merged_aln
     def flip_query_alignment(self):
         self.query_sequence_start, self.query_sequence_end = self.query_sequence_length - self.query_sequence_end, self.query_sequence_length - self.query_sequence_start

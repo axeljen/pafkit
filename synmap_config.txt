@@ -1,0 +1,25 @@
+## Example configuration file for progressive_synteny.py
+
+## Lines that start with hashtag are ignored
+
+# path to the reference genome file (fasta index or two-columns with chrom\tlenght)
+reference = path/to/reference.fa.fai
+
+# query genomes. each query should start with a line with the text 'query'.
+# two additional lines are mandatory: genome file (again, a faidx file is fine) and the alignment to the reference. An additional line specifying label is allowed.
+
+query
+genome = path/to/query_1.fa.fai
+alignment = path/to/query_1_vs_reference.paf
+label = genome1 # this field is optional
+
+query
+genome = path/to/query_2.fa.fai
+alignment = path/to/query_2_vs_reference.paf
+label = genome2
+
+query 
+genome = path/to/query_3.fa.fai
+alignment = path/to/query_2_vs_reference.paf
+
+# etc....

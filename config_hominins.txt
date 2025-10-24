@@ -1,0 +1,25 @@
+
+
+## Lines that start with hashtag are ignored
+
+# path to the reference genome file (fasta index or two-columns with chrom\tlenght)
+reference = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/fastafiles/GCF_000001405.40_GRCh38.p14_genomic.fna.gz.fai
+
+# query genomes. each query should start with a line with the text 'query'.
+# two additional lines are mandatory: genome file (again, a faidx file is fine) and the alignment to the reference. An additional line specifying label is allowed.
+
+query
+genome = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/fastafiles/GCA_028858775.3_NHGRI_mPanTro3-v2.1_pri_genomic.fna.gz.fai
+alignment = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/alignments/fastafiles_GCA_028858775.3_NHGRI_mPanTro3-v2.1_pri_genomic_to_fastafiles_GCF_000001405.40_GRCh38.p14_genomic.paf
+label = Chimpanzee
+
+query
+genome = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/fastafiles/GCA_029281585.3_NHGRI_mGorGor1-v2.1_pri_genomic.fna.gz.fai
+alignment = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/alignments/fastafiles_GCA_029281585.3_NHGRI_mGorGor1-v2.1_pri_genomic_to_fastafiles_GCF_000001405.40_GRCh38.p14_genomic.paf
+label = Gorilla
+
+query 
+genome = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/fastafiles/GCA_028885655.3_NHGRI_mPonAbe1-v2.1_pri_genomic.fna.gz.fai
+alignment = /cfs/klemming/projects/supr/naiss2025-23-567/pafkit_examplefiles/pafkit_examplefiles/alignments/fastafiles_GCA_028885655.3_NHGRI_mPonAbe1-v2.1_pri_genomic_to_fastafiles_GCF_000001405.40_GRCh38.p14_genomic.paf
+label = Orangutan
+

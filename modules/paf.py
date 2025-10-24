@@ -7,10 +7,10 @@ import numpy as np
 import warnings
 
 class PAF():
-    def __init__(self):
-        self.alignments = []
-        self.target_genome = None
-        self.query_genome = None
+    def __init__(self, alignments = [], target_genome = None, query_genome = None):
+        self.alignments = alignments
+        self.target_genome = target_genome
+        self.query_genome = query_genome
         self.sorted = None
         self.header = None
     def __repr__(self):
@@ -97,12 +97,16 @@ class PAF():
             
         #print("Number of target chromosomes after filtering: {}".format(len(self.target_genome.sequences) if self.target_genome else 0))
         #print("Number of query chromosomes after filtering: {}".format(len(self.query_genome.sequences) if self.query_genome else 0))
-    def sort_on_target(self, suppress_warnings=False):
+    def sort_on_target(self, custom_order=None, suppress_warnings=False):
         """
         Sort alignments based on target genome position, really only meaningful if a target genome index file has been provided.
         """
+        if custom_order:
+            # sort based on custom order
+            chromorder = {chrom: i for i, chrom in enumerate(custom_order)}
+            self.alignments = sorted(self.alignments, key=lambda x: (chromorder[x.target_sequence], x.target_sequence_start))
 		# if there's a target genome index, we'll use this to sort the alignments
-        if self.target_genome:
+        elif self.target_genome:
             # sort based on target genome sequences
             chromorder = {chrom: i for i, chrom in enumerate(list(self.target_genome.sequences.keys()))}
             self.alignments = sorted(self.alignments, key=lambda x: (chromorder[x.target_sequence], x.target_sequence_start))
@@ -128,7 +132,7 @@ class PAF():
         """
         Merge consecutive alignments, that are less than max_gap apart on both target and query.
         """
-        if self.sorted is not "target":
+        if self.sorted != "target":
             raise ValueError("Alignments must be sorted before merging.")
         merged_alignments = [self.alignments[0]]
         for aln in self.alignments[1:]:
@@ -210,10 +214,12 @@ class PAF():
         if target_pos < 0 or target_pos > self.target_genome.sequences[target_chrom]:
             raise ValueError("Target position {} is outside the range of target chromosome {} (length {}).".format(target_pos, target_chrom, self.target_genome.sequences[target_chrom]))
         # make sure that alignments are sorted by target
-        self.sort_on_target(suppress_warnings=False)
+        if not self.sorted == "target":
+            self.sort_on_target(suppress_warnings=False)
         # get all the alignments for the target chromosome
         alignments = self.fetch(target_sequence=target_chrom)
         last_pos = 0
+        liftover_pos = None
         for aln in alignments:
             if aln.target_sequence_end < target_pos:
                 last_pos = aln.target_sequence_end
@@ -232,13 +238,15 @@ class PAF():
                     liftover_pos = (last_pos, aln.target_sequence_start)
                     break
         # if liftover pos is of length 1, make a tuple with identical start and end
+        if liftover_pos is None:
+            return (None, None, None)
         if isinstance(liftover_pos, int):
             return (liftover_seq, liftover_pos, liftover_pos)
         elif isinstance(liftover_pos, tuple) and len(liftover_pos) == 2:
             return (liftover_seq, liftover_pos[0], liftover_pos[1])
         else:
             # if this for some reason fails, return None
-            return None
+            return (None, None, None)
     # def switch_strand_sign(self,chrom):
     #     for aln in self.alignments:
     #         if aln.query_sequence == chrom:
@@ -316,7 +324,7 @@ class PAF():
         query_positions = []
         for sequence in self.query_genome.sequences:
             median_start = self.get_median_target_position(sequence)
-            if median_start is not None:
+            if median_start != None:
                 query_positions.append({'sequence': sequence, 'median_start': median_start})
         # sort on median target position
         query_positions = sorted(query_positions, key=lambda x: x['median_start'])
@@ -324,16 +332,25 @@ class PAF():
         new_order = [q['sequence'] for q in query_positions]
         # sort the query genome sequences
         self.query_genome.sort_sequences(new_order)
-    def add_cumulative_query_start(self, sequence_gap=0):
+    def add_cumulative_query_start(self, sequence_gap=0, equal_widths=False):
         # sort on target
         self.sort_on_target()
         if self.target_genome.cumulative_startpos is None or self.target_genome.cumulative_startpos == {}:
             self.target_genome.add_cumulative_startpos(sequence_gap)
+        # if equal_widths is set, calculate the gap for the query chromosomes based on the number of chromosomes
+        if equal_widths:
+            num_chroms = len(self.query_genome.sequences)
+            max_target_position = max(self.target_genome.cumulative_startpos[seq] + length for seq, length in self.target_genome.sequences.items())
+            total_gap = max_target_position - sum(self.query_genome.sequences.values())
+            if num_chroms > 1:
+                sequence_gap = total_gap // (num_chroms - 1)
+            else:
+                sequence_gap = 0
         # get median startpos of query sequences
         query_positions = []
         for sequence in self.query_genome.sequences:
             median_start = self.get_median_target_position(sequence)
-            if median_start is not None:
+            if median_start != None:
                 query_positions.append({'sequence': sequence, 'median_start': median_start})
             else:
                 query_positions.append({'sequence': sequence, 'median_start': float('inf')})
