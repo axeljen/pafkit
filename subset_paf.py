@@ -91,9 +91,12 @@ subset_paf = pafparser.PAF()
 subset_paf.target_genome = paf.target_genome
 subset_paf.query_genome = paf.query_genome
 subset_paf.alignments = []
-for region in reference_regions:
-    chrom, start, end = region
-    subset_paf.alignments.extend(paf.fetch(chrom, start, end, only_contained=only_contained))
+if reference_regions:
+    for region in reference_regions:
+        chrom, start, end = region
+        subset_paf.alignments.extend(paf.fetch(chrom, start, end, only_contained=only_contained))
+else:
+    subset_paf.alignments = paf.alignments
     
 # now apply the other filters
 subset_paf.filter_alignments(minlen=min_aln_length, minpid=min_identity, minmapq=min_quality, min_target_sequence_length=min_reference_length, min_query_sequence_length=min_query_length, aligned_fraction=aligned_fraction)
