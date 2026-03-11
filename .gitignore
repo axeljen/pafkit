@@ -6,3 +6,7 @@ modules/__pycache__/
 tests.py
 *.paf
 *.fai
+
+# local environment
+.env
+.env/*
