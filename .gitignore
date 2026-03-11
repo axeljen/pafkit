@@ -10,7 +10,8 @@ tests.py
 *.tsv
 *.png
 
-# local environment
-.env
-.env/*
+# Python environments
+.venv/
+venv/
+env/
 
