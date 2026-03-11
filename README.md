@@ -142,3 +142,11 @@ As you'll see, this keeps a whole bunch of gorilla chromosomes that look more or
 
 Which results in a much cleaner plot:
 ![example synteny plot chr1 aln fraction 0.2](./example/gorilla_to_human_chr1_aln_fraction_0.2.png)
+
+## alnprops.py
+
+Script to estimate the proportions of aligned length to the respective target chromosomes for query sequences in the input PAF file. Combine with subset_paf.py for filtering and subsetting.
+
+Example usage:
+```
+# find the query chromosomees 

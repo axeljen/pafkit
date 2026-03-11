@@ -4,3 +4,5 @@ modules/__pycache__/
 
 # Local test files
 tests.py
+*.paf
+*.fai
