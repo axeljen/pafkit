@@ -4,14 +4,14 @@ A collection of python scripts for processing and visualizing PAF alignment file
 
 ## Getting started
 
-First, you'll need a working python installation (developed with 3.12.7, probably works with most 3.x versions). 
+First, you'll need to install [uv](https://docs.astral.sh/uv/), a fast Python package manager and project manager. Then:
 
 Clone the repository and install the dependencies:
 ```
 git clone https://github.com/axeljen/pafkit.git
 
 cd pafkit
-pip install -r requirements.txt
+uv sync
 
 # make the scripts executable
 chmod +x *.py
