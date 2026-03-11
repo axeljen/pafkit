@@ -149,4 +149,14 @@ Script to estimate the proportions of aligned length to the respective target ch
 
 Example usage:
 ```
-# find the query chromosomees 
+# find the gorilla chromosomes that align to human chromosome 1
+
+  ./subset_paf.py -i gorilla_vs_human.paf -r NC_000001.11 -l 20000 \
+    --query GCF_029281585.2_NHGRI_mGorGor1-v2.1_pri_genomic.fna.gz.fai \
+    --reference GCF_000001405.40_GRCh38.p14_genomic.fna.gz.fai | \
+  ./alnprops.py -i - \
+    --query GCF_029281585.2_NHGRI_mGorGor1-v2.1_pri_genomic.fna.gz.fai \
+    --reference GCF_000001405.40_GRCh38.p14_genomic.fna.gz.fai \
+    -o gorilla_chr1_aln_props.tsv
+
+```
